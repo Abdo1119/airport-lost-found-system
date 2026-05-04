@@ -1,11 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
-import { Loader2 } from "lucide-react";
-import { useParams } from "react-router-dom";
+import { ArrowRight, Search } from "lucide-react";
+import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
-import { Badge } from "../components/Badge";
+import { Button, Card, Section } from "../components/ui";
+import { StatusPill } from "../components/ui/Pill";
 import { ImageComparePanel } from "../components/ImageComparePanel";
-import { PageHeader } from "../components/PageHeader";
 import { useToast } from "../components/Toast";
 import type { LostReport, MatchCandidate } from "../types";
 
@@ -26,6 +26,15 @@ export function LostReportDetailPage() {
     queryKey: ["lost-report", id],
     queryFn: async () => (await api.get<LostReport>(`/lost-reports/${id}`)).data,
   });
+  // Pull all matches once and filter client-side — avoids needing a per-report endpoint.
+  const { data: allMatches = [] } = useQuery({
+    queryKey: ["matches"],
+    queryFn: async () => (await api.get<MatchCandidate[]>("/matches")).data,
+  });
+  const matches = allMatches
+    .filter((match) => match.lost_report_id === Number(id))
+    .sort((a, b) => b.match_score - a.match_score);
+
   const runMatching = useMutation({
     mutationFn: async () => (await api.post<MatchCandidate[]>(`/lost-reports/${id}/run-matching`)).data,
     onSuccess: (data) => {
@@ -34,42 +43,104 @@ export function LostReportDetailPage() {
     },
     onError: (error) => toast.push(describeError(error, "Could not run matching."), "error"),
   });
-  if (isLoading) return <p className="text-sm text-slate-500">Loading lost report...</p>;
-  if (!report) return <p className="text-sm text-slate-500">Lost report not available.</p>;
+
+  if (isLoading) return <p className="text-sm text-ink-500">Loading lost report...</p>;
+  if (!report) return <p className="text-sm text-ink-500">Lost report not available.</p>;
+
   return (
-    <section className="space-y-4">
-      <PageHeader
-        title={report.item_title}
-        kicker={report.report_code}
-        action={
-          <button
-            onClick={() => runMatching.mutate()}
-            disabled={runMatching.isPending}
-            className="focus-ring inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-          >
-            {runMatching.isPending ? <Loader2 size={14} className="animate-spin" /> : null}
-            {runMatching.isPending ? "Running..." : "Run matching"}
-          </button>
-        }
-      />
-      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <Badge value={report.status} />
-        <p className="mt-4 text-sm leading-6 text-slate-700">{report.raw_description}</p>
+    <Section
+      kicker={report.report_code}
+      title={report.item_title}
+      action={
+        <Button onClick={() => runMatching.mutate()} loading={runMatching.isPending} leftIcon={<Search className="h-4 w-4" />}>
+          {runMatching.isPending ? "Running..." : "Run matching"}
+        </Button>
+      }
+    >
+      {/* Report details */}
+      <Card>
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusPill value={report.status} />
+        </div>
+        <p className="mt-4 text-sm leading-relaxed text-ink-700">{report.raw_description}</p>
         <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-          <div><dt className="font-semibold text-slate-500">Category</dt><dd>{report.category ?? "—"}</dd></div>
-          <div><dt className="font-semibold text-slate-500">Color</dt><dd>{report.color ?? "—"}</dd></div>
-          <div><dt className="font-semibold text-slate-500">Location</dt><dd>{report.lost_location ?? "—"}</dd></div>
-          <div><dt className="font-semibold text-slate-500">Flight</dt><dd>{report.flight_number ?? "—"}</dd></div>
+          <div><dt className="text-[11px] font-semibold uppercase tracking-wider text-ink-500">Category</dt><dd className="mt-0.5 text-ink-800">{report.category ?? "—"}</dd></div>
+          <div><dt className="text-[11px] font-semibold uppercase tracking-wider text-ink-500">Color</dt><dd className="mt-0.5 text-ink-800">{report.color ?? "—"}</dd></div>
+          <div><dt className="text-[11px] font-semibold uppercase tracking-wider text-ink-500">Location</dt><dd className="mt-0.5 text-ink-800">{report.lost_location ?? "—"}</dd></div>
+          <div><dt className="text-[11px] font-semibold uppercase tracking-wider text-ink-500">Flight</dt><dd className="mt-0.5 text-ink-800">{report.flight_number ?? "—"}</dd></div>
         </dl>
-      </div>
-      {report.proof_blob_url ? (
-        <ImageComparePanel
-          lostImageUrl={report.proof_blob_url}
-          foundImageUrl={null}
-          lostLabel={`Lost report ${report.report_code}`}
-          foundLabel="Run matching to compare against found items"
-        />
-      ) : null}
-    </section>
+      </Card>
+
+      {/* Match candidates with side-by-side images */}
+      <Card className="overflow-hidden p-0" padded={false}>
+        <div className="flex items-center justify-between border-b border-ink-200/60 px-5 py-4">
+          <div>
+            <p className="font-display text-base font-semibold tracking-tight text-ink-900">
+              Matched found items {matches.length > 0 ? <span className="text-ink-400">({matches.length})</span> : null}
+            </p>
+            <p className="text-xs text-ink-500">
+              Passenger's photo on the left, candidate found item on the right. Open Match Review to act on any candidate.
+            </p>
+          </div>
+          {matches.length ? (
+            <Link to="/staff/matches" className="focus-ring inline-flex items-center gap-1 text-xs font-semibold text-navy-700 hover:underline">
+              Open in Match Review <ArrowRight className="h-3 w-3" />
+            </Link>
+          ) : null}
+        </div>
+
+        {matches.length === 0 ? (
+          <div className="px-5 py-8 text-center">
+            <p className="text-sm text-ink-500">
+              No matches yet. Click <span className="font-semibold text-ink-800">Run matching</span> to score this report against current found items.
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-ink-100">
+            {matches.map((match) => {
+              const score = Math.round(match.match_score);
+              const scoreTone = score >= 85 ? "text-success-700" : score >= 70 ? "text-warn-700" : "text-ink-600";
+              const ringTone = score >= 85 ? "ring-success-500/30" : score >= 70 ? "ring-warn-500/30" : "ring-ink-300";
+              const imageScore = (match.evidence_spans_json as { image_score?: number } | undefined)?.image_score;
+              return (
+                <div key={match.id} className="px-5 py-5">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-display text-sm font-semibold tracking-tight text-ink-900">
+                        {match.found_item?.item_title ?? "Found item"}
+                      </p>
+                      <StatusPill value={match.confidence_level} />
+                      <StatusPill value={match.status} />
+                      <StatusPill value={match.found_item?.risk_level} />
+                      {imageScore !== undefined ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700 ring-1 ring-violet-200/60">
+                          Image {Math.round(imageScore)}/100
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className={`grid h-12 w-12 place-items-center rounded-2xl bg-white ring-2 ${ringTone}`}>
+                      <span className={`font-display text-lg font-bold tabular-nums ${scoreTone}`}>{score}</span>
+                    </div>
+                  </div>
+
+                  <ImageComparePanel
+                    lostImageUrl={report.proof_blob_url}
+                    foundImageUrl={match.found_item?.image_blob_url}
+                    lostLabel={`Lost report ${report.report_code}`}
+                    foundLabel={match.found_item?.item_title ?? "Found item"}
+                  />
+
+                  {match.ai_match_summary ? (
+                    <p className="mt-3 whitespace-pre-line rounded-2xl bg-ink-50/60 px-3 py-2 text-xs leading-relaxed text-ink-700">
+                      {match.ai_match_summary}
+                    </p>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+    </Section>
   );
 }
