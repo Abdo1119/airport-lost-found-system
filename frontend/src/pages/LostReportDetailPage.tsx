@@ -27,11 +27,13 @@ export function LostReportDetailPage() {
     queryFn: async () => (await api.get<LostReport>(`/lost-reports/${id}`)).data,
   });
   // Pull all matches once and filter client-side — avoids needing a per-report endpoint.
-  const { data: allMatches = [] } = useQuery({
+  const { data: allMatches, isLoading: matchesLoading } = useQuery({
     queryKey: ["matches"],
     queryFn: async () => (await api.get<MatchCandidate[]>("/matches")).data,
+    refetchOnMount: "always",
+    staleTime: 0,
   });
-  const matches = allMatches
+  const matches = (allMatches ?? [])
     .filter((match) => match.lost_report_id === Number(id))
     .sort((a, b) => b.match_score - a.match_score);
 
@@ -89,11 +91,23 @@ export function LostReportDetailPage() {
           ) : null}
         </div>
 
-        {matches.length === 0 ? (
+        {matchesLoading ? (
+          <div className="px-5 py-8 text-center text-sm text-ink-500">Loading matches…</div>
+        ) : matches.length === 0 ? (
           <div className="px-5 py-8 text-center">
-            <p className="text-sm text-ink-500">
-              No matches yet. Click <span className="font-semibold text-ink-800">Run matching</span> to score this report against current found items.
+            <p className="text-sm text-ink-600">
+              No matches yet. Click <span className="font-semibold text-ink-900">Run matching</span> to score this report against current found items.
             </p>
+            {report.proof_blob_url ? (
+              <div className="mx-auto mt-5 max-w-sm">
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-ink-500">Passenger's proof photo</p>
+                <img
+                  src={report.proof_blob_url}
+                  alt="Lost report proof"
+                  className="mx-auto w-full rounded-2xl border border-ink-200 object-contain"
+                />
+              </div>
+            ) : null}
           </div>
         ) : (
           <div className="divide-y divide-ink-100">

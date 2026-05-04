@@ -26,11 +26,13 @@ export function FoundItemDetailPage() {
     queryKey: ["found-item", id],
     queryFn: async () => (await api.get<FoundItem>(`/found-items/${id}`)).data,
   });
-  const { data: allMatches = [] } = useQuery({
+  const { data: allMatches, isLoading: matchesLoading } = useQuery({
     queryKey: ["matches"],
     queryFn: async () => (await api.get<MatchCandidate[]>("/matches")).data,
+    refetchOnMount: "always",
+    staleTime: 0,
   });
-  const matches = allMatches
+  const matches = (allMatches ?? [])
     .filter((match) => match.found_item_id === Number(id))
     .sort((a, b) => b.match_score - a.match_score);
 
@@ -98,20 +100,23 @@ export function FoundItemDetailPage() {
               ) : null}
             </div>
 
-            {matches.length === 0 ? (
+            {matchesLoading ? (
+              <div className="px-5 py-8 text-center text-sm text-ink-500">Loading matches…</div>
+            ) : matches.length === 0 ? (
               <div className="px-5 py-8 text-center">
+                <p className="text-sm text-ink-600">
+                  No match candidates for this item yet. Click <span className="font-semibold text-ink-900">Run matching</span> above to score it against open lost reports.
+                </p>
                 {item.image_blob_url ? (
-                  <ImageComparePanel
-                    foundImageUrl={item.image_blob_url}
-                    lostImageUrl={null}
-                    foundLabel={item.item_title}
-                    lostLabel="No matching lost report yet"
-                  />
-                ) : (
-                  <p className="text-sm text-ink-500">
-                    No matches yet. Click <span className="font-semibold text-ink-800">Run matching</span> to compare against open lost reports.
-                  </p>
-                )}
+                  <div className="mx-auto mt-5 max-w-sm">
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-ink-500">This item's photo</p>
+                    <img
+                      src={item.image_blob_url}
+                      alt={item.item_title}
+                      className="mx-auto w-full rounded-2xl border border-ink-200 object-contain"
+                    />
+                  </div>
+                ) : null}
               </div>
             ) : (
               <div className="divide-y divide-ink-100">
