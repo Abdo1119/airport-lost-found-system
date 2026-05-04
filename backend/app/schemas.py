@@ -36,7 +36,8 @@ class UserCreate(BaseModel):
 class UserRead(ORMModel):
     id: int
     name: str
-    email: EmailStr
+    # Read schema accepts any string (demo/seed records may use special-use TLDs).
+    email: str
     phone: str | None
     role: UserRole
     is_disabled: bool = False
@@ -164,7 +165,9 @@ class LostReportRead(ORMModel):
     lost_location: str | None
     lost_datetime: datetime | None
     flight_number: str | None
-    contact_email: EmailStr | None
+    # Read schema accepts any string — input validation happens on Create/Update.
+    # Some seed/demo records use special-use TLDs like "@demo.local" that EmailStr rejects.
+    contact_email: str | None
     contact_phone: str | None
     proof_blob_url: str | None
     embedding_vector_id: str | None
