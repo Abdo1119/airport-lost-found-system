@@ -831,7 +831,14 @@ class AzureOpenAIService:
                 max_output_tokens=180,
             )
             data = self._parse_json_object(content)
-            questions = [str(question) for question in data.get("questions", []) if question][:3]
+            raw_questions = data.get("questions", [])
+            questions = []
+            for question in raw_questions:
+                if isinstance(question, dict):
+                    questions.append(str(question.get("question") or question.get("text") or next(iter(question.values()), "")))
+                elif question:
+                    questions.append(str(question))
+            questions = [q for q in questions if q][:3]
             if questions:
                 await cache_service.set_json(key, {"questions": questions}, self.settings.cache_ai_ttl_seconds)
                 return questions
