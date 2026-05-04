@@ -74,8 +74,18 @@ services:
       target: dev
     environment:
       VITE_API_URL: http://localhost:8000
+      CHOKIDAR_USEPOLLING: "true"   # Reliable file-watching on Windows/WSL volume mounts
     ports:
       - "5173:5173"
+    volumes:
+      # Mount src + config so Vite HMR picks up local edits without rebuilds.
+      # node_modules stays inside the container (faster + keeps platform-specific binaries).
+      - ./frontend/src:/app/src
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/tailwind.config.js:/app/tailwind.config.js
+      - ./frontend/postcss.config.js:/app/postcss.config.js
+      - ./frontend/vite.config.ts:/app/vite.config.ts
+      - ./frontend/tsconfig.json:/app/tsconfig.json
     depends_on:
       - backend
 
